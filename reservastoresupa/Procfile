@@ -1,2 +1,1 @@
-web: gunicorn reservastoresupa.wsgi --log-file -
-#or works good with external database
+web: gunicorn reservastoresupa.wsgi:application --bind 0.0.0.0:8000
