@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'lojas',
+    'core.lojas',
     'rest_framework',
     'corsheaders',
     'rest_framework.authtoken',
