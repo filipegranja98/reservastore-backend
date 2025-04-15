@@ -70,7 +70,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 CORS_ALLOW_ALL_ORIGINS = True
-ROOT_URLCONF = 'core.urls'
+ROOT_URLCONF = 'reservastoresupa.core.urls'
+WSGI_APPLICATION = 'reservastoresupa.core.wsgi.application'
+
 
 TEMPLATES = [
     {
@@ -88,7 +90,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+
 
 
 import os
