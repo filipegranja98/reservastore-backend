@@ -74,10 +74,19 @@ class CategoriaSerializer(BoundSerializer):
 
 
 class LojaSerializer(BoundSerializer):
-    tipo_catalogo = serializers.SerializerMethodField()
+    tipo_catalogo = serializers.ChoiceField(source="modalidade_catalogo", choices=["produtos", "servicos"], required=False)
 
-    def get_tipo_catalogo(self, obj):
-        return obj.tipo_loja.modo_catalogo if obj.tipo_loja_id else "produtos"
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["tipo_catalogo"] = instance.catalogo_efetivo
+        return data
+
+    def validate_whatsapp(self, value):
+        import re
+        value = value.strip()
+        if re.search(r"[^\d\s+().-]", value) or not 10 <= len(re.sub(r"\D", "", value)) <= 15:
+            raise serializers.ValidationError("Informe um telefone válido com DDD (10 a 15 dígitos).")
+        return value
 
     tipo_loja_nome = serializers.CharField(source="tipo_loja.nome", read_only=True, allow_null=True)
     binding = "dono"
@@ -113,7 +122,7 @@ class LojaPublicaSerializer(serializers.ModelSerializer):
     tipo_catalogo = serializers.SerializerMethodField()
 
     def get_tipo_catalogo(self, obj):
-        return obj.tipo_loja.modo_catalogo if obj.tipo_loja_id else "produtos"
+        return obj.catalogo_efetivo
 
     tipo_loja_nome = serializers.CharField(source="tipo_loja.nome", read_only=True, allow_null=True)
     class Meta:

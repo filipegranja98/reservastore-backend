@@ -344,7 +344,7 @@ class MarketplaceTests(APITestCase):
         self.assertNotIn("mensalidade", response.data)
         for changes in [{"papel": "administrador"}, {"is_staff": True}, {"is_superuser": True}]:
             self.assertEqual(self.client.patch("/api/conta/", changes).status_code, 400)
-        self.assertEqual(self.client.post("/api/lojas/", {"nome": "invaded", "whatsapp": "111"}).status_code, 403)
+        self.assertEqual(self.client.post("/api/lojas/", {"nome": "invaded", "whatsapp": "81999990000"}).status_code, 403)
         self.assertEqual(self.client.get("/api/lojista/pedidos/").status_code, 403)
         self.assertEqual(self.client.get("/api/administracao/lojas/").status_code, 403)
         self.client.force_authenticate(self.m1)
@@ -388,7 +388,7 @@ class RegistrationTests(APITestCase):
         self.assertEqual(self.client.post("/api/auth/cadastro/", self.payload(papel="lojista")).status_code, 201)
         user = get_user_model().objects.get()
         self.client.force_authenticate(user)
-        response = self.client.post("/api/lojas/", {"nome": "Nova loja", "whatsapp": "111"})
+        response = self.client.post("/api/lojas/", {"nome": "Nova loja", "whatsapp": "81999990000"})
         self.assertEqual(response.status_code, 201)
         self.assertFalse(response.data["ativa"])
         self.assertEqual(response.data["assinatura_status"], "pendente")

@@ -73,7 +73,7 @@ def _preparar_compra(user, attrs):
         raise ValidationError("Esta modalidade está desativada pela loja. Escolha outra opção disponível.")
     endereco = area = None
     if attrs.get("modalidade", "entrega") == "retirada":
-        if loja.tipo_loja_id and loja.tipo_loja.modo_catalogo == "servicos":
+        if loja.catalogo_efetivo == "servicos":
             raise ValidationError("Retirada está disponível somente para lojas de produtos.")
     else:
         endereco = get_object_or_404(Endereco.objects.select_for_update(), pk=attrs["endereco"], cliente=user)

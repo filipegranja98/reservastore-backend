@@ -9,7 +9,7 @@ class LojaAdmin(admin.ModelAdmin):
     list_display = ("nome", "aberta", "ativa", "assinatura_status", "cor_primaria", "cor_secundaria")
     list_filter = ("tipo_loja", "aberta", "ativa", "assinatura_status")
     fieldsets = (
-        ("Loja", {"fields": ("nome", "dono", "email_contato", "whatsapp", "tipo_loja")}),
+        ("Loja", {"fields": ("nome", "dono", "email_contato", "whatsapp", "modalidade_catalogo", "tipo_loja")}),
         ("Atendimento", {"fields": ("aberta", "permite_entrega", "permite_retirada"), "description": "Estado operacional manual, separado da aprovação e assinatura da loja."}),
         ("Identidade visual", {"fields": ("logo", "cor_primaria", "cor_secundaria"), "description": "Logo e cores aplicados somente a esta loja no aplicativo."}),
         ("Pagamento direto", {"fields": ("meios_pagamento", "instrucoes_pagamento")}),

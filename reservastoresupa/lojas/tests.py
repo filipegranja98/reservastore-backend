@@ -79,7 +79,7 @@ class IsolationTests(APITestCase):
         c = get_user_model().objects.create_user("c")
         self.client.force_authenticate(c)
         self.assertEqual(self.client.post("/api/lojas/", {"nome": "C", "whatsapp": "333", "dono": self.a.pk}).status_code, 400)
-        response = self.client.post("/api/lojas/", {"nome": "C", "whatsapp": "333"})
+        response = self.client.post("/api/lojas/", {"nome": "C", "whatsapp": "81988887777"})
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["dono"], c.pk)
         self.assertEqual(self.client.post("/api/lojas/", {"nome": "C2", "whatsapp": "333"}).status_code, 400)

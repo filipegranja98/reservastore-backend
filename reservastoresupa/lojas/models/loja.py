@@ -16,6 +16,7 @@ def lojas_publicas():
 class Loja(models.Model):
     dono = models.OneToOneField(User, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
+    modalidade_catalogo = models.CharField(max_length=10, blank=True, default="", choices=[("produtos", "Loja de produtos"), ("servicos", "Prestador de serviços")], verbose_name="Perfil da loja", help_text="Se não selecionado, segue o tipo de loja já cadastrado.")
     tipo_loja = models.ForeignKey("TipoLoja", on_delete=models.PROTECT, null=True, blank=True, related_name="lojas", verbose_name="Tipo de loja")
     email_contato = models.EmailField(blank=True, default="", verbose_name="Email da loja ou do proprietário", help_text="Email público de contato. Pode ser o email comercial da loja ou do dono.")
     whatsapp = models.CharField(max_length=20, verbose_name="Telefone / WhatsApp da loja", help_text="Informe o número próprio da loja com DDD; inclua o DDI se for de outro país.")
@@ -35,6 +36,10 @@ class Loja(models.Model):
 
     class Meta:
         constraints = [models.CheckConstraint(condition=models.Q(mensalidade__isnull=True) | models.Q(mensalidade__gte=0), name="mensalidade_nao_negativa")]
+
+    @property
+    def catalogo_efetivo(self):
+        return self.modalidade_catalogo or (self.tipo_loja.modo_catalogo if self.tipo_loja_id else "produtos")
 
     @property
     def aceita_pedidos(self):
