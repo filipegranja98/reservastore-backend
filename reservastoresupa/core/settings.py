@@ -44,7 +44,10 @@ if DB_ENGINE not in {"sqlite", "postgresql"}:
     raise ImproperlyConfigured("DJANGO_DB_ENGINE deve ser sqlite ou postgresql.")
 if DB_ENGINE == "postgresql":
     DATABASES = {"default": {"ENGINE": "django.db.backends.postgresql",
-        **{key: os.environ["DJANGO_DB_" + key] for key in ("NAME", "USER", "PASSWORD", "HOST", "PORT")}}}
+        **{key: os.environ["DJANGO_DB_" + key] for key in ("NAME", "USER", "PASSWORD", "HOST", "PORT")},
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {"sslmode": os.getenv("DJANGO_DB_SSLMODE", "require"), "connect_timeout": 10}}}
 AUTH_PASSWORD_VALIDATORS = [{"NAME": "django.contrib.auth.password_validation." + name} for name in (
     "UserAttributeSimilarityValidator", "MinimumLengthValidator", "CommonPasswordValidator", "NumericPasswordValidator")]
 REST_FRAMEWORK = {
