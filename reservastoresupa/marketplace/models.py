@@ -7,6 +7,29 @@ from django.db.models import Q
 from reservastoresupa.lojas.models import Loja, Produto
 
 
+class Agendamento(models.Model):
+    cliente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="agendamentos")
+    loja = models.ForeignKey(Loja, on_delete=models.PROTECT, related_name="agendamentos")
+    servico = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    chave = models.UUIDField(unique=True)
+    servico_nome = models.CharField(max_length=255)
+    valor_referencia = models.DecimalField(max_digits=10, decimal_places=2)
+    endereco = models.JSONField()
+    inicio_solicitado = models.DateTimeField()
+    inicio_proposto = models.DateTimeField(null=True, blank=True)
+    inicio_confirmado = models.DateTimeField(null=True, blank=True)
+    observacoes = models.TextField(blank=True, max_length=1500)
+    mensagem_loja = models.TextField(blank=True, max_length=1000)
+    status = models.CharField(max_length=20, default="solicitado", choices=[(v, v) for v in ("solicitado", "contraproposta", "confirmado", "concluido", "recusado", "cancelado")])
+    versao = models.PositiveIntegerField(default=1)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-criado_em", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["loja", "inicio_confirmado"], condition=Q(status="confirmado"), name="agendamento_horario_confirmado_unico")]
+
+
 def normalizar_condominio(value):
     return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 

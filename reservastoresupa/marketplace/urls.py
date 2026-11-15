@@ -6,6 +6,8 @@ from .views import (CadastroView, ContaView, SenhaView, EnderecoViewSet, AreaEnt
     PedidosLojistaViewSet, LojasAdminViewSet, PedidosAdminViewSet, UsuariosAdminViewSet)
 
 router = DefaultRouter()
+from .appointments import AgendamentoViewSet
+router.register("agendamentos", AgendamentoViewSet, basename="agendamento")
 router.register("enderecos", EnderecoViewSet, basename="endereco")
 router.register("lojista/areas-entrega", AreaEntregaViewSet, basename="area-entrega")
 router.register("catalogo/tipos-loja", TipoLojaViewSet, basename="tipo-loja")

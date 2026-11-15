@@ -59,6 +59,8 @@ class CompraPreparada:
 def _preparar_compra(user, attrs):
     """Shared validation/calculation; callers must hold the customer lock in a transaction."""
     loja = get_object_or_404(Loja.objects.select_for_update(), pk=attrs["loja"])
+    if loja.catalogo_efetivo == "servicos":
+        raise ValidationError("Para serviços, solicite um agendamento com data e horário.")
     if not loja.aberta:
         raise ValidationError("Esta loja está fechada no momento e não está recebendo novos pedidos.")
     if not loja.aceita_pedidos:
