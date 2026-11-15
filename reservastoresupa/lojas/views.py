@@ -1,172 +1,97 @@
-from rest_framework.authentication import TokenAuthentication
-from rest_framework.decorators import action
+from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
-from .models import Produto, Loja, Categoria
-from .serializers import LojaSerializer, ProdutoSerializer, CategoriaSerializer, LojaPublicaSerializer, serializers
-from rest_framework import viewsets
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from reservastoresupa.marketplace.pagination import OptionalPageNumberPagination
+from .models import Loja, Categoria, Produto
+from .models.loja import lojas_publicas
+from .serializers import LojaSerializer, CategoriaSerializer, ProdutoSerializer, LojaPublicaSerializer
+
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        value = request.data.get("refresh_token")
+        if not value:
+            raise ValidationError({"refresh_token": "Informe o refresh token."})
         try:
-            refresh_token = request.data.get("refresh_token")
-            if refresh_token:
-                token = RefreshToken(refresh_token)
-                token.blacklist()  # Envia para blacklist
-                return Response({"message": "Logout realizado com sucesso."}, status=status.HTTP_205_RESET_CONTENT)
-            return Response({"error": "Refresh token não fornecido."}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            token = RefreshToken(value)
+            if str(token["user_id"]) != str(request.user.pk):
+                raise ValidationError({"refresh_token": "O token não pertence ao usuário autenticado."})
+            token.blacklist()
+        except TokenError:
+            raise ValidationError({"refresh_token": "Token inválido ou expirado."})
+        return Response(status=status.HTTP_205_RESET_CONTENT)
 
 
+class OwnedViewSet(viewsets.ModelViewSet):
+    pagination_class = OptionalPageNumberPagination
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.serializer_class.Meta.model.objects.filter(loja__dono=self.request.user).order_by("pk")
+
+    def perform_create(self, serializer):
+        loja = get_object_or_404(Loja, dono=self.request.user)
+        serializer.save(loja=loja)
 
 
-
-
-
-# View para login de usuários
-from rest_framework_simplejwt.views import TokenObtainPairView
-
-class LoginView(TokenObtainPairView):
-    pass  # Já herda toda a lógica de autenticação do JWT
-
-
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.response import Response
-from rest_framework import status
-from .serializers import CustomTokenObtainPairSerializer
-
-class CustomLoginView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
-
-    def post(self, request, *args, **kwargs):
-        try:
-            # Chama a lógica padrão do TokenObtainPairView
-            return super().post(request, *args, **kwargs)
-        except serializers.ValidationError as e:
-            # Se o erro for de validação (usuário ou senha inválidos), retorna a mensagem de erro personalizada
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            # Caso haja outro erro inesperado, retorna uma mensagem genérica
-            return Response({"detail": "Erro inesperado no servidor."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-
-
-
-# View para gerenciar produtos
-class ProdutoViewSet(viewsets.ModelViewSet):
+class ProdutoViewSet(OwnedViewSet):
     serializer_class = ProdutoSerializer
-    permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        loja = Loja.objects.filter(dono=self.request.user).first()
-        if loja:
-            return Produto.objects.filter(loja=loja)
-        return Produto.objects.none()  # Se o usuário não tem loja, não vê produtos
 
-    def perform_create(self, serializer):
-        loja = Loja.objects.filter(dono=self.request.user).first()
-        if loja:
-            serializer.save(loja=loja)
-        else:
-            raise ValidationError("Usuário não possui uma loja cadastrada.")
-
-    def perform_update(self, serializer):
-        produto = self.get_object()
-        if produto.loja.dono != self.request.user:
-            raise PermissionDenied("Você não tem permissão para editar este produto.")
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        if instance.loja.dono != self.request.user:
-            raise PermissionDenied("Você não tem permissão para excluir este produto.")
-        instance.delete()
-
-# View para gerenciar categorias
-class CategoriaViewSet(viewsets.ModelViewSet):
+class CategoriaViewSet(OwnedViewSet):
     serializer_class = CategoriaSerializer
-    permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        loja = Loja.objects.filter(dono=self.request.user).first()
-        if loja:
-            return Categoria.objects.filter(loja=loja)
-        return Categoria.objects.none()  # Se o usuário não tem loja, não vê categorias
-
-    def perform_create(self, serializer):
-        loja = Loja.objects.filter(dono=self.request.user).first()
-        if loja:
-            if Categoria.objects.filter(loja=loja, nome=serializer.validated_data["nome"]).exists():
-                raise ValidationError("Essa categoria já existe para sua loja.")
-            serializer.save(loja=loja)
-        else:
-            raise ValidationError("Usuário não possui uma loja cadastrada.")
-
-    def perform_update(self, serializer):
-        categoria = self.get_object()
-        if categoria.loja.dono != self.request.user:
-            raise PermissionDenied("Você não tem permissão para editar esta categoria.")
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        if instance.loja.dono != self.request.user:
-            raise PermissionDenied("Você não tem permissão para excluir esta categoria.")
-        instance.delete()
-
-# View para listar todas as lojas (para administradores ou usuários autenticados)
-from rest_framework.permissions import AllowAny
 
 class TodasLojasView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
-        lojas = Loja.objects.all()
-        serializer = LojaPublicaSerializer(lojas, many=True)
-        return Response(serializer.data)
+    def get(self, request):
+        return Response(LojaPublicaSerializer(lojas_publicas(), many=True, context={"request": request}).data)
 
 
 class LojaViewSet(viewsets.ModelViewSet):
+    pagination_class = OptionalPageNumberPagination
     serializer_class = LojaSerializer
     permission_classes = [IsAuthenticated]
-    queryset = Loja.objects.all()
 
     def get_queryset(self):
-        """Retorna apenas a loja do usuário logado."""
-        return Loja.objects.filter(dono=self.request.user)
+        return Loja.objects.filter(dono=self.request.user).order_by("pk")
 
-    @action(detail=False, methods=['GET'])
+    def perform_create(self, serializer):
+        from reservastoresupa.marketplace.models import Perfil
+        if self.request.user.is_staff or Perfil.objects.filter(user=self.request.user, papel="cliente").exists():
+            raise PermissionDenied("Cadastre uma conta de lojista para criar sua loja.")
+        if Loja.objects.filter(dono=self.request.user).exists():
+            raise ValidationError("Usuário já possui uma loja.")
+        try:
+            with transaction.atomic():
+                serializer.save(dono=self.request.user)
+                Perfil.objects.get_or_create(user=self.request.user, defaults={"papel": "lojista"})
+        except IntegrityError:
+            raise ValidationError("Usuário já possui uma loja.")
+
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ValidationError("Loja com pedidos não pode ser excluída. Solicite sua desativação ao administrador.")
+
+    @action(detail=False, methods=["get"])
     def minha_loja(self, request):
-        """Endpoint que retorna a loja vinculada ao usuário logado."""
-        loja = get_object_or_404(Loja, dono=request.user)
-        serializer = self.get_serializer(loja)
-        return Response(serializer.data)
+        return Response(self.get_serializer(get_object_or_404(self.get_queryset())).data)
 
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=["get"])
     def minha_loja_completa(self, request):
-        """Endpoint que retorna todos os dados da loja do usuário logado (Loja, Produtos e Categorias)."""
-        loja = get_object_or_404(Loja, dono=request.user)
-
-        # Séries de serializadores
-        loja_serializer = LojaSerializer(loja)
-        produtos = Produto.objects.filter(loja=loja)
-        categorias = Categoria.objects.filter(loja=loja)
-
-        # Serializadores para produtos e categorias
-        produtos_serializer = ProdutoSerializer(produtos, many=True)
-        categorias_serializer = CategoriaSerializer(categorias, many=True)
-
-        # Retorna todos os dados da loja, incluindo produtos e categorias
-        response_data = {
-            'loja': loja_serializer.data,
-            'produtos': produtos_serializer.data,
-            'categorias': categorias_serializer.data
-        }
-
-        return Response(response_data)
+        loja = get_object_or_404(self.get_queryset())
+        return Response({"loja": self.get_serializer(loja).data,
+            "produtos": ProdutoSerializer(loja.produtos.all(), many=True, context=self.get_serializer_context()).data,
+            "categorias": CategoriaSerializer(loja.categorias.all(), many=True, context=self.get_serializer_context()).data})
