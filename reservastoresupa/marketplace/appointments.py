@@ -37,7 +37,7 @@ class BookingOutput(serializers.ModelSerializer):
     fotos = serializers.SerializerMethodField()
 
     def get_fotos(self, obj):
-        return list(obj.fotos.values_list("id", flat=True))
+        return [photo.pk for photo in obj.fotos.all()]
 
 
 class BookingInput(StrictSerializer):
@@ -138,7 +138,7 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
         # Every confirmation for a shop holds the same lock before checking its time slots.
         initial = get_object_or_404(self.get_queryset(), pk=pk)
         loja = Loja.objects.select_for_update().get(pk=initial.loja_id)
-        booking = Agendamento.objects.select_for_update().select_related("loja", "cliente").get(pk=initial.pk)
+        booking = Agendamento.objects.select_for_update(of=("self",)).select_related("loja", "cliente").get(pk=initial.pk)
         data = BookingAction(data=request.data)
         data.is_valid(raise_exception=True)
         values = data.validated_data
