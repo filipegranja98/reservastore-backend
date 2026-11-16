@@ -17,6 +17,8 @@ def health(request):
 def public_image(request, asset):
     root = Path(settings.MEDIA_ROOT).resolve()
     target = (root / asset).resolve()
+    if target.is_relative_to(root) and target.relative_to(root).parts and target.relative_to(root).parts[0].lower() == "agendamentos":
+        raise Http404
     if not target.is_relative_to(root) or target.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"} or not target.is_file():
         raise Http404
     response = FileResponse(target.open("rb"))

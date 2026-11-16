@@ -18,9 +18,15 @@ class Agendamento(models.Model):
     inicio_solicitado = models.DateTimeField()
     inicio_proposto = models.DateTimeField(null=True, blank=True)
     inicio_confirmado = models.DateTimeField(null=True, blank=True)
-    observacoes = models.TextField(blank=True, max_length=1500)
+    duracao_minutos = models.PositiveSmallIntegerField(default=60, validators=[MinValueValidator(15), MaxValueValidator(720)])
+    duracao_proposta = models.PositiveSmallIntegerField(default=60, validators=[MinValueValidator(15), MaxValueValidator(720)])
+    inicio_reagendamento = models.DateTimeField(null=True, blank=True)
+    reagendamento_origem = models.CharField(max_length=10, blank=True, default="")
+    motivo_reagendamento = models.TextField(blank=True, max_length=1000)
+    motivo_cancelamento = models.TextField(blank=True, max_length=1000)
+    observacoes = models.TextField(blank=True, max_length=5000)
     mensagem_loja = models.TextField(blank=True, max_length=1000)
-    status = models.CharField(max_length=20, default="solicitado", choices=[(v, v) for v in ("solicitado", "contraproposta", "confirmado", "concluido", "recusado", "cancelado")])
+    status = models.CharField(max_length=20, default="solicitado", choices=[(v, v) for v in ("solicitado", "contraproposta", "confirmado", "em_execucao", "concluido", "recusado", "cancelado")])
     versao = models.PositiveIntegerField(default=1)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -28,6 +34,16 @@ class Agendamento(models.Model):
     class Meta:
         ordering = ["-criado_em", "-pk"]
         constraints = [models.UniqueConstraint(fields=["loja", "inicio_confirmado"], condition=Q(status="confirmado"), name="agendamento_horario_confirmado_unico")]
+
+
+def foto_agendamento_path(instance, filename):
+    return f"agendamentos/{uuid.uuid4().hex}.jpg"
+
+
+class FotoAgendamento(models.Model):
+    agendamento = models.ForeignKey(Agendamento, on_delete=models.CASCADE, related_name="fotos")
+    chave = models.UUIDField(unique=True)
+    imagem = models.ImageField(upload_to=foto_agendamento_path)
 
 
 def normalizar_condominio(value):
