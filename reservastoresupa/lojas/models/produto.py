@@ -12,6 +12,11 @@ class Produto(models.Model):
     preco = models.DecimalField(max_digits=10, decimal_places=2)
     imagem = models.ImageField(upload_to="produtos/", blank=True, null=True)
 
+    @property
+    def preco_atual(self):
+        from ..promotion_prices import current_price
+        return current_price(self)
+
     def __str__(self):
         return self.nome
 

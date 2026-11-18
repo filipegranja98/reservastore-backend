@@ -69,7 +69,8 @@ def _preparar_compra(user, attrs):
     itens = list(carrinho.itens.all())
     if not itens:
         raise ValidationError("Carrinho vazio.")
-    produtos = Produto.objects.select_for_update().filter(pk__in=[item.produto_id for item in itens]).in_bulk()
+    from reservastoresupa.lojas.promotion_prices import with_promotions
+    produtos = with_promotions(Produto.objects.select_for_update(of=("self",)).filter(pk__in=[item.produto_id for item in itens])).in_bulk()
     modalidade = attrs.get("modalidade", "entrega")
     if (modalidade == "entrega" and not loja.permite_entrega) or (modalidade == "retirada" and not loja.permite_retirada):
         raise ValidationError("Esta modalidade está desativada pela loja. Escolha outra opção disponível.")
@@ -92,9 +93,10 @@ def _preparar_compra(user, attrs):
             raise ValidationError("Um produto do carrinho não está mais disponível nesta loja.")
         if produto.preco < 0:
             raise ValidationError("Produto com preço inválido.")
-        total = (produto.preco * item.quantidade).quantize(Decimal("0.01"))
+        price = produto.preco_atual
+        total = (price * item.quantidade).quantize(Decimal("0.01"))
         subtotal += total
-        snapshots.append({"produto": produto, "nome": produto.nome, "preco_unitario": produto.preco,
+        snapshots.append({"produto": produto, "nome": produto.nome, "preco_unitario": price,
                           "quantidade": item.quantidade, "total": total})
     if subtotal + (area.taxa if area else Decimal("0.00")) > Decimal("999999999999.99"):
         raise ValidationError("O total excede o limite do pedido.")

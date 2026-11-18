@@ -3,3 +3,5 @@ from .produto import Produto
 from .loja import Loja
 
 from .tipo_loja import TipoLoja
+
+from .promocao import Promocao

@@ -98,13 +98,13 @@ class QuantidadeSerializer(StrictSerializer):
 
 class ItemCarrinhoSerializer(serializers.ModelSerializer):
     nome = serializers.CharField(source="produto.nome", read_only=True)
-    preco_unitario = serializers.DecimalField(source="produto.preco", max_digits=10, decimal_places=2, read_only=True)
+    preco_unitario = serializers.DecimalField(source="produto.preco_atual", max_digits=10, decimal_places=2, read_only=True)
     total = serializers.SerializerMethodField()
     class Meta:
         model = ItemCarrinho
         fields = ["id", "produto", "nome", "preco_unitario", "quantidade", "total"]
     def get_total(self, obj):
-        return str(obj.produto.preco * obj.quantidade)
+        return str(obj.produto.preco_atual * obj.quantidade)
 
 
 class CarrinhoSerializer(serializers.ModelSerializer):
@@ -114,7 +114,7 @@ class CarrinhoSerializer(serializers.ModelSerializer):
         model = Carrinho
         fields = ["id", "loja", "itens", "subtotal"]
     def get_subtotal(self, obj):
-        return format(sum((item.produto.preco * item.quantidade for item in obj.itens.select_related("produto")), start=0), ".2f")
+        return format(sum((item.produto.preco_atual * item.quantidade for item in obj.itens.select_related("produto")), start=0), ".2f")
 
 
 class CheckoutSerializer(StrictSerializer):

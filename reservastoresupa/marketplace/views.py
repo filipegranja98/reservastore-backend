@@ -129,6 +129,7 @@ class AreaEntregaViewSet(viewsets.ModelViewSet):
 
 
 class ProdutoPublicoSerializer(serializers.ModelSerializer):
+    preco = serializers.DecimalField(source="preco_atual", max_digits=10, decimal_places=2, read_only=True)
     class Meta:
         model = Produto
         fields = ["id", "nome", "categoria", "preco", "imagem"]
@@ -187,7 +188,13 @@ class CatalogoViewSet(viewsets.ReadOnlyModelViewSet):
         if category is not None:
             get_object_or_404(loja.categorias, pk=category)
             produtos = produtos.filter(categoria_id=category)
-        return self.responder_lista(produtos, ProdutoPublicoSerializer)
+        from reservastoresupa.lojas.promotion_prices import with_promotions
+        return self.responder_lista(with_promotions(produtos), ProdutoPublicoSerializer)
+
+    @action(detail=True, methods=["get"])
+    def promocoes(self,request,pk=None):
+        from reservastoresupa.lojas.promotions import PromocaoSerializer, public_promotions
+        return self.responder_lista(public_promotions(self.get_object()), PromocaoSerializer)
 
     @action(detail=True, methods=["get"])
     def categorias(self, request, pk=None):

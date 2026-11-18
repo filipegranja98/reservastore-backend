@@ -1,3 +1,4 @@
+from .promotions import PromocaoViewSet
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from .views import LojaViewSet, ProdutoViewSet, CategoriaViewSet, TodasLojasView, LogoutView
@@ -6,6 +7,7 @@ from reservastoresupa.marketplace.authentication import LoginView, RefreshView, 
 router = DefaultRouter()
 router.register("lojas", LojaViewSet, basename="loja")
 router.register("produtos", ProdutoViewSet, basename="produto")
+router.register("promocoes", PromocaoViewSet, basename="promocao")
 router.register("categorias", CategoriaViewSet, basename="categoria")
 
 urlpatterns = [
