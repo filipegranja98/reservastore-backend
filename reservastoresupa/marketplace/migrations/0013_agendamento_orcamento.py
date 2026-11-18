@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='agendamento',
             name='orcamento_status',
-            field=models.CharField(blank=True, choices=[('', 'Sem orÃ§amento'), ('pendente', 'Aguardando cliente'), ('aceito', 'Aceito'), ('recusado', 'Recusado')], default='', max_length=12),
+            field=models.CharField(blank=True, choices=[('', 'Sem orçamento'), ('pendente', 'Aguardando cliente'), ('aceito', 'Aceito'), ('recusado', 'Recusado')], default='', max_length=12),
         ),
         migrations.AddField(
             model_name='agendamento',

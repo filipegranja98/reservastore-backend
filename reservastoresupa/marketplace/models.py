@@ -16,7 +16,7 @@ class Agendamento(models.Model):
     servico_nome = models.CharField(max_length=255)
     valor_referencia = models.DecimalField(max_digits=10, decimal_places=2)
     orcamento_valor = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal("0.01"))])
-    orcamento_status = models.CharField(max_length=12, blank=True, default="", choices=[("", "Sem orÃ§amento"), ("pendente", "Aguardando cliente"), ("aceito", "Aceito"), ("recusado", "Recusado")])
+    orcamento_status = models.CharField(max_length=12, blank=True, default="", choices=[("", "Sem orçamento"), ("pendente", "Aguardando cliente"), ("aceito", "Aceito"), ("recusado", "Recusado")])
     orcamento_descricao = models.TextField(blank=True, max_length=1000)
     orcamento_enviado_em = models.DateTimeField(null=True, blank=True)
     orcamento_respondido_em = models.DateTimeField(null=True, blank=True)
