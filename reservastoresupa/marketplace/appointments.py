@@ -33,7 +33,7 @@ class BookingOutput(serializers.ModelSerializer):
 
     class Meta:
         model = Agendamento
-        fields = ["id", "loja", "loja_nome", "cliente_nome", "servico", "servico_nome", "valor_referencia", "endereco", "inicio_solicitado", "inicio_proposto", "inicio_confirmado", "observacoes", "mensagem_loja", "status", "versao", "criado_em", "duracao_minutos", "duracao_proposta", "inicio_reagendamento", "reagendamento_origem", "motivo_reagendamento", "motivo_cancelamento", "fotos", "orcamento_valor", "orcamento_status", "orcamento_descricao", "orcamento_enviado_em", "orcamento_respondido_em"]
+        fields = ["id", "loja", "loja_nome", "cliente_nome", "servico", "servico_nome", "valor_referencia", "endereco", "inicio_solicitado", "inicio_proposto", "inicio_confirmado", "observacoes", "mensagem_loja", "status", "versao", "criado_em", "duracao_minutos", "duracao_proposta", "inicio_reagendamento", "reagendamento_origem", "motivo_reagendamento", "motivo_cancelamento", "fotos", "orcamento_valor", "orcamento_status", "orcamento_descricao", "orcamento_enviado_em", "orcamento_respondido_em", "cancelado_por", "cancelado_em"]
 
     fotos = serializers.SerializerMethodField()
 
@@ -93,6 +93,21 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
             if query:
                 qs = qs.filter(Q(servico_nome__icontains=query) | Q(cliente__first_name__icontains=query) | Q(endereco__telefone__icontains=query) | Q(endereco__condominio__icontains=query))
         return qs
+
+    @action(detail=False, methods=["get"])
+    def avisos(self, request):
+        rows = self.get_queryset().filter(cliente=request.user, status="cancelado", cancelamento_visto_em__isnull=True).exclude(cancelado_por="cliente").order_by("-atualizado_em", "-pk")[:20]
+        return Response(BookingOutput(rows, many=True).data, headers={"Cache-Control": "private, no-store"})
+
+    @action(detail=True, methods=["post"], url_path="cancelamento-visto")
+    def cancelamento_visto(self, request, pk=None):
+        booking = self.get_object()
+        if booking.cliente_id != request.user.pk:
+            raise PermissionDenied("Somente o cliente pode marcar este aviso como lido.")
+        if booking.status != "cancelado":
+            raise ValidationError("Este agendamento não está cancelado.")
+        Agendamento.objects.filter(pk=booking.pk, cancelamento_visto_em__isnull=True).update(cancelamento_visto_em=timezone.now())
+        return Response({"lido": True})
 
     @action(detail=False, methods=["get"])
     def resumo(self, request):
@@ -266,6 +281,9 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
             booking.status = "recusado" if action_name == "recusar" else "cancelado"
             if action_name == "cancelar":
                 booking.motivo_cancelamento = values["mensagem"]
+                booking.cancelado_por = "loja" if merchant else "cliente"
+                booking.cancelado_em = timezone.now()
+                booking.cancelamento_visto_em = None
         if merchant and values["mensagem"].strip():
             booking.mensagem_loja = values["mensagem"]
         booking.versao += 1
