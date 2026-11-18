@@ -1,4 +1,5 @@
 from datetime import timedelta, datetime, time
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 from django.db import transaction, IntegrityError
 from django.db.models import Q
@@ -32,7 +33,7 @@ class BookingOutput(serializers.ModelSerializer):
 
     class Meta:
         model = Agendamento
-        fields = ["id", "loja", "loja_nome", "cliente_nome", "servico", "servico_nome", "valor_referencia", "endereco", "inicio_solicitado", "inicio_proposto", "inicio_confirmado", "observacoes", "mensagem_loja", "status", "versao", "criado_em", "duracao_minutos", "duracao_proposta", "inicio_reagendamento", "reagendamento_origem", "motivo_reagendamento", "motivo_cancelamento", "fotos"]
+        fields = ["id", "loja", "loja_nome", "cliente_nome", "servico", "servico_nome", "valor_referencia", "endereco", "inicio_solicitado", "inicio_proposto", "inicio_confirmado", "observacoes", "mensagem_loja", "status", "versao", "criado_em", "duracao_minutos", "duracao_proposta", "inicio_reagendamento", "reagendamento_origem", "motivo_reagendamento", "motivo_cancelamento", "fotos", "orcamento_valor", "orcamento_status", "orcamento_descricao", "orcamento_enviado_em", "orcamento_respondido_em"]
 
     fotos = serializers.SerializerMethodField()
 
@@ -65,6 +66,13 @@ class BookingEdit(StrictSerializer):
     endereco = serializers.IntegerField(min_value=1, required=False)
 
 
+class BookingQuote(StrictSerializer):
+    acao = serializers.ChoiceField(choices=["enviar", "aceitar", "recusar"])
+    versao = serializers.IntegerField(min_value=1)
+    valor = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"), required=False)
+    descricao = serializers.CharField(max_length=1000, allow_blank=True, required=False)
+
+
 class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BookingOutput
@@ -76,7 +84,7 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
         state = self.request.query_params.get("status")
         if self.action == "list":
             if state == "pendentes":
-                qs = qs.filter(Q(status__in=["solicitado", "contraproposta"]) | Q(status="confirmado", inicio_reagendamento__isnull=False))
+                qs = qs.filter(Q(status__in=["solicitado", "contraproposta"]) | (Q(status="confirmado", inicio_reagendamento__isnull=False) | Q(status="confirmado", orcamento_status="pendente")))
             elif state == "historico":
                 qs = qs.filter(status__in=["concluido", "recusado", "cancelado"])
             elif state == "confirmado":
@@ -89,7 +97,7 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"])
     def resumo(self, request):
         qs = self.get_queryset()
-        return Response({"total": qs.count(), "pendentes": qs.filter(Q(status__in=["solicitado", "contraproposta"]) | Q(status="confirmado", inicio_reagendamento__isnull=False)).count(), "agendados": qs.filter(status__in=["confirmado", "em_execucao"]).count(), "concluidos": qs.filter(status="concluido").count()})
+        return Response({"total": qs.count(), "pendentes": qs.filter(Q(status__in=["solicitado", "contraproposta"]) | (Q(status="confirmado", inicio_reagendamento__isnull=False) | Q(status="confirmado", orcamento_status="pendente"))).count(), "agendados": qs.filter(status__in=["confirmado", "em_execucao"]).count(), "concluidos": qs.filter(status="concluido").count()})
 
     @action(detail=False, methods=["get"])
     def agenda(self, request):
@@ -134,6 +142,43 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
+    def orcamento(self, request, pk=None):
+        initial = get_object_or_404(self.get_queryset(), pk=pk)
+        booking = Agendamento.objects.select_for_update(of=("self",)).select_related("loja", "cliente").get(pk=initial.pk)
+        data = BookingQuote(data=request.data)
+        data.is_valid(raise_exception=True)
+        values = data.validated_data
+        if values["versao"] != booking.versao:
+            raise ValidationError("Este agendamento mudou. Atualize para conferir o orçamento antes de responder.")
+        if booking.status not in {"solicitado", "contraproposta", "confirmado"}:
+            raise ValidationError("Não é possível alterar o orçamento de um atendimento cancelado, encerrado ou em andamento.")
+        if values["acao"] == "enviar":
+            if request.user.pk != booking.loja.dono_id:
+                raise PermissionDenied("Somente a loja pode informar o valor do serviço.")
+            if booking.orcamento_status == "aceito":
+                raise ValidationError("O cliente já aceitou este valor. O orçamento aprovado não pode ser alterado.")
+            if "valor" not in values:
+                raise ValidationError({"valor": "Informe o valor total do serviço, maior que zero."})
+            booking.orcamento_valor = values["valor"]
+            booking.orcamento_descricao = values.get("descricao", "")
+            booking.orcamento_status = "pendente"
+            booking.orcamento_enviado_em = timezone.now()
+            booking.orcamento_respondido_em = None
+        else:
+            if request.user.pk != booking.cliente_id:
+                raise PermissionDenied("Somente o cliente pode aceitar ou recusar o orçamento.")
+            if "valor" in values or "descricao" in values:
+                raise ValidationError("O cliente pode responder ao orçamento, mas não alterar o valor ou a descrição.")
+            if booking.orcamento_status != "pendente" or booking.orcamento_valor is None:
+                raise ValidationError("Não há um orçamento aguardando sua resposta. Atualize o agendamento.")
+            booking.orcamento_status = "aceito" if values["acao"] == "aceitar" else "recusado"
+            booking.orcamento_respondido_em = timezone.now()
+        booking.versao += 1
+        booking.save()
+        return Response(BookingOutput(booking).data)
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
     def responder(self, request, pk=None):
         # Every confirmation for a shop holds the same lock before checking its time slots.
         initial = get_object_or_404(self.get_queryset(), pk=pk)
@@ -156,6 +201,8 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
                    "iniciar": {"confirmado"}, "reagendar": {"solicitado", "contraproposta", "confirmado"}, "recusar_reagendamento": {"confirmado"}}
         if booking.status not in allowed[action_name]:
             raise ValidationError("Esta ação não está disponível no estado atual.")
+        if action_name in {"iniciar", "concluir"} and booking.orcamento_status in {"pendente", "recusado"}:
+            raise ValidationError("O cliente precisa aceitar o orçamento antes de iniciar ou concluir o serviço.")
         if action_name == "propor":
             if "inicio_proposto" not in values:
                 raise ValidationError("Informe a nova data e o horário.")
@@ -239,6 +286,8 @@ class AgendamentoViewSet(viewsets.ReadOnlyModelViewSet):
         values = data.validated_data
         if values["versao"] != booking.versao:
             raise ValidationError("Esta solicitação mudou. Atualize antes de editar.")
+        if booking.orcamento_status in {"pendente", "aceito"} and (values["observacoes"] != booking.observacoes or "endereco" in values):
+            raise ValidationError("Há um orçamento para estes dados. Converse com a loja antes de mudar o serviço ou o endereço.")
         booking.observacoes = values["observacoes"]
         if "endereco" in values:
             address = get_object_or_404(Endereco, pk=values["endereco"], cliente=request.user)
